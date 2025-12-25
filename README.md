@@ -1,4 +1,4 @@
-# Simple MCP Server - 超人信息服务
+# Simple MCP Server - 超人信息服务 (Python 版)
 
 一个简单的 MCP (Model Context Protocol) 服务器示例，用于学习和测试 MCP 协议。
 
@@ -25,13 +25,13 @@ MCP (Model Context Protocol) 是由 Anthropic 开发的开放协议，用于让 
 ### 1. 安装依赖
 
 ```bash
-npm install
+pip install -r requirements.txt
 ```
 
 ### 2. 启动服务器
 
 ```bash
-npm start
+python server.py
 ```
 
 服务器将在 `http://localhost:3000` 启动。
@@ -70,8 +70,8 @@ curl http://localhost:3000/
 {
   "mcpServers": {
     "superman": {
-      "command": "node",
-      "args": ["/path/to/simple_mcp/server.js"]
+      "command": "python",
+      "args": ["/path/to/simple_mcp/server.py"]
     }
   }
 }
@@ -81,21 +81,32 @@ curl http://localhost:3000/
 
 ```
 simple_mcp/
-├── package.json    # 项目配置和依赖
-├── server.js       # MCP 服务器主文件（含详细注释）
-└── README.md       # 本说明文件
+├── requirements.txt  # Python 依赖配置
+├── server.py         # MCP 服务器主文件（含详细注释）
+└── README.md         # 本说明文件
 ```
 
 ## 技术栈
 
-- **Node.js** - JavaScript 运行时
-- **Express** - Web 框架
-- **@modelcontextprotocol/sdk** - MCP 官方 SDK
+- **Python 3.8+** - 编程语言
+- **FastAPI** - Web 框架
+- **uvicorn** - ASGI 服务器
+- **mcp** - MCP 官方 Python SDK
+
+## 代码结构说明
+
+`server.py` 中包含详细的中文注释，解释了：
+
+1. **MCP 基本概念** - Tools、Resources、Prompts 的作用
+2. **FastMCP 使用** - 如何使用装饰器注册工具
+3. **SSE 传输机制** - HTTP + Server-Sent Events 通信方式
+4. **工具实现** - 如何定义参数和返回值
 
 ## 学习资源
 
 - [MCP 官方文档](https://modelcontextprotocol.io/)
-- [MCP SDK GitHub](https://github.com/modelcontextprotocol/sdk)
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+- [FastAPI 文档](https://fastapi.tiangolo.com/)
 
 ## License
 

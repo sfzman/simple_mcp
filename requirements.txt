@@ -1,0 +1,11 @@
+# MCP (Model Context Protocol) Python SDK
+# 这是 Anthropic 官方提供的 MCP 协议 Python 实现
+mcp>=1.0.0
+
+# FastAPI - 现代、快速的 Python Web 框架
+# 用于创建 HTTP API 端点
+fastapi>=0.100.0
+
+# Uvicorn - 高性能 ASGI 服务器
+# 用于运行 FastAPI 应用
+uvicorn>=0.20.0
