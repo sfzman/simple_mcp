@@ -32,8 +32,6 @@ MCP 支持多种传输方式：stdio、HTTP+SSE 等
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
-from starlette.middleware import Middleware
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 # MCP SDK - 提供 MCP 协议的核心实现
 from mcp.server.fastmcp import FastMCP
@@ -133,7 +131,9 @@ SUPERMAN_INFO = {
 #
 # 参数说明：
 # - name: 服务器名称，用于标识这个 MCP 服务器
-mcp = FastMCP(SERVER_NAME)
+# - host: 设置为 "0.0.0.0" 禁用默认的 DNS rebinding protection
+#         （默认 "127.0.0.1" 会限制只允许 localhost 相关的 Host header）
+mcp = FastMCP(SERVER_NAME, host="0.0.0.0")
 
 
 # ============================================================================
@@ -290,18 +290,11 @@ custom_routes = [
     Route("/health", health_check),  # 健康检查端点
 ]
 
-# 配置中间件
-# TrustedHostMiddleware: 允许所有 hosts（Cloud Run 负载均衡器会修改 Host header）
-middleware = [
-    Middleware(TrustedHostMiddleware, allowed_hosts=["*"])
-]
-
 # 创建主应用
 # 将自定义路由添加到 MCP 应用的路由列表中
 # 这样可以在同一个服务器上同时提供 MCP 功能和自定义 HTTP 端点
 app = Starlette(
-    routes=custom_routes + mcp_app.routes,  # 合并自定义路由和 MCP 路由
-    middleware=middleware  # 添加中间件
+    routes=custom_routes + mcp_app.routes  # 合并自定义路由和 MCP 路由
 )
 
 
