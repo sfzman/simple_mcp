@@ -45,12 +45,15 @@ from typing import Literal
 # 日期时间
 from datetime import datetime
 
+# 环境变量
+import os
+
 # ============================================================================
 # 配置常量
 # ============================================================================
 
-# 服务器监听端口
-PORT = 3000
+# 服务器监听端口（支持 Cloud Run 的 PORT 环境变量）
+PORT = int(os.environ.get("PORT", 3000))
 
 # 服务器名称（会在 MCP 握手时发送给客户端）
 SERVER_NAME = "superman-mcp-server"
