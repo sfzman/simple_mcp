@@ -1,18 +1,14 @@
 """
 ============================================================================
-简单的 MCP (Model Context Protocol) 服务器示例 - Python 版本
+教材资源 MCP (Model Context Protocol) 服务器 - Mock 版本
 ============================================================================
 
-什么是 MCP？
-MCP (Model Context Protocol) 是由 Anthropic 开发的一个开放协议，
-用于让 AI 模型（如 Claude）与外部工具、数据源进行标准化交互。
+这是一个教材出版社的 MCP 服务器 Mock 实现，提供教材资料查询功能。
 
-MCP 的核心概念：
-1. Tools (工具)     - 可以被 AI 调用的函数，类似于 API 接口
-2. Resources (资源) - 可以被读取的数据源，如文件、数据库等
-3. Prompts (提示)   - 预定义的提示模板
-
-本示例实现了一个简单的 Tool，返回"超人"的基本信息。
+可用工具：
+1. metadata_discovery - 了解数据库结构、内容关系、可用过滤条件和工具集
+2. semantic_search    - 在指定范围内进行自然语言语义搜索
+3. search_by_criteria - 通过精确条件筛选内容
 
 传输方式：
 MCP 支持多种传输方式：stdio、HTTP+SSE 等
@@ -59,7 +55,7 @@ import os
 PORT = int(os.environ.get("PORT", 3000))
 
 # 服务器名称（会在 MCP 握手时发送给客户端）
-SERVER_NAME = "superman-mcp-server"
+SERVER_NAME = "textbook-mcp-server"
 
 # 身份验证 Token（用于测试）
 # 在生产环境中，应该从环境变量或安全存储中读取
@@ -115,66 +111,191 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 # ============================================================================
-# 超人的基本信息数据
+# 教材资源元数据 (Metadata Discovery)
 # ============================================================================
 
-# 超人的详细信息字典
-# 在实际应用中，这些数据可能来自数据库或外部 API
-SUPERMAN_INFO = {
-    # 基本身份信息
-    "name": "Superman",                           # 超级英雄名称
-    "realName": "Clark Kent",                     # 真实姓名
-    "alias": "Kal-El",                           # 氪星名字
-
-    # 出版信息
-    "publisher": "DC Comics",                     # 出版商
-    "firstAppearance": "Action Comics #1 (1938)", # 首次登场
-    "creators": ["Jerry Siegel", "Joe Shuster"],  # 创作者
-
-    # 外貌特征
-    "appearance": {
-        "height": "6'3\" (191 cm)",               # 身高
-        "weight": "235 lbs (107 kg)",             # 体重
-        "eyeColor": "Blue",                       # 眼睛颜色
-        "hairColor": "Black"                      # 头发颜色
-    },
-
-    # 超能力列表
-    "powers": [
-        "Super strength (超级力量)",
-        "Flight (飞行)",
-        "Invulnerability (刀枪不入)",
-        "Super speed (超级速度)",
-        "Heat vision (热视线)",
-        "Freeze breath (冰冻呼吸)",
-        "X-ray vision (透视眼)",
-        "Super hearing (超级听力)",
-        "Super stamina (超级耐力)"
+# 元数据发现返回的数据结构
+# 这是 AI 必须首先调用的工具，用于了解数据库结构
+METADATA_DISCOVERY_DATA = {
+    # 内容类型定义
+    "content_types": [
+        {
+            "type": "textbook",
+            "description": "教學手冊和教材",
+            "key_field": "textbook_uuid",
+            "display_field": "filename"
+        },
+        {
+            "type": "knowledge_point",
+            "description": "知識點內容",
+            "key_field": "uuid",
+            "display_field": "knowledge_point_name"
+        },
+        {
+            "type": "question",
+            "description": "練習題目",
+            "key_field": "question_id",
+            "display_field": "question_title"
+        }
     ],
 
-    # 弱点
-    "weaknesses": [
-        "Kryptonite (氪石)",
-        "Magic (魔法)",
-        "Red sun radiation (红太阳辐射)"
+    # 内容类型之间的关系
+    "relationships": [
+        {
+            "from": "textbook",
+            "to": "knowledge_point",
+            "relation": "contains",
+            "description": "教冊包含多個知識點"
+        },
+        {
+            "from": "knowledge_point",
+            "to": "question",
+            "relation": "has_exercises",
+            "description": "知識點衍生出多個題目"
+        }
     ],
 
-    # 背景故事
-    "origin": (
-        "来自氪星(Krypton)的外星人，在氪星毁灭前被父母送往地球。"
-        "在地球上被堪萨斯州的肯特夫妇收养，以Clark Kent的身份长大。"
-        "地球的黄色太阳赋予了他超凡的能力，他决定用这些能力保护人类。"
-    ),
+    # 可用工具列表
+    "available_tools": [
+        {
+            "name": "metadata_discovery",
+            "description": "了解數據庫結構、內容關係、可用過濾條件和工具集",
+            "usage_scenarios": ["首次連接時調用", "了解系統能力", "查詢可用過濾條件"]
+        },
+        {
+            "name": "semantic_search",
+            "description": "在指定範圍內進行自然語言語義搜索",
+            "usage_scenarios": ["查找相關知識點", "搜索教學內容", "尋找練習題目"]
+        },
+        {
+            "name": "search_by_criteria",
+            "description": "通過精確條件篩選內容",
+            "usage_scenarios": ["按年級篩選", "按難度篩選", "按科目篩選", "按題型篩選"]
+        }
+    ],
 
-    # 关联角色
-    "associates": {
-        "loveInterest": "Lois Lane",              # 爱人
-        "bestFriend": "Batman",                   # 挚友
-        "team": "Justice League"                  # 所属团队
+    # 可用的过滤条件
+    "available_filters": {
+        "question": {
+            "difficulty": {
+                "type": "enum",
+                "values": ["易", "中", "難", "競賽"],
+                "description": "題目難易度",
+                "required": False
+            },
+            "question_type": {
+                "type": "enum",
+                "values": ["選擇題", "填空題", "問答題", "看圖回答"],
+                "description": "題型分類",
+                "required": False
+            },
+            "grade": {
+                "type": "enum",
+                "values": ["七年級", "八年級", "九年級"],
+                "description": "適用年級",
+                "required": False
+            },
+            "subject": {
+                "type": "enum",
+                "values": ["英語", "數學", "國文", "自然", "社會"],
+                "description": "科目",
+                "required": False
+            },
+            "knowledge_point_code": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}\\d{12}$",
+                "description": "知識點代碼（如 JEN000000000001）",
+                "required": False
+            }
+        },
+        "knowledge_point": {
+            "grade": {
+                "type": "enum",
+                "values": ["七年級", "八年級", "九年級"],
+                "description": "適用年級",
+                "required": False
+            },
+            "subject": {
+                "type": "enum",
+                "values": ["英語", "數學", "國文", "自然", "社會"],
+                "description": "科目",
+                "required": False
+            },
+            "chapter": {
+                "type": "string",
+                "description": "章節編號",
+                "required": False
+            },
+            "textbook_uuid": {
+                "type": "string",
+                "description": "所屬教冊的UUID",
+                "required": False
+            }
+        },
+        "textbook": {
+            "grade": {
+                "type": "enum",
+                "values": ["七年級", "八年級", "九年級"],
+                "description": "適用年級",
+                "required": False
+            },
+            "subject": {
+                "type": "enum",
+                "values": ["英語", "數學", "國文", "自然", "社會"],
+                "description": "科目",
+                "required": False
+            },
+            "semester": {
+                "type": "enum",
+                "values": ["上學期", "下學期"],
+                "description": "學期",
+                "required": False
+            },
+            "publisher": {
+                "type": "enum",
+                "values": ["康軒", "南一", "翰林"],
+                "description": "出版社",
+                "required": False
+            }
+        }
     },
 
-    # 著名口号
-    "motto": "Truth, Justice, and a Better Tomorrow (真理、正义与更美好的明天)"
+    # 系统限制
+    "limitations": {
+        "max_results_per_query": 50,
+        "max_concurrent_queries": 5,
+        "rate_limit": "100 requests per minute",
+        "query_timeout_ms": 10000
+    },
+
+    # 使用示例和典型工作流程
+    "examples": {
+        "typical_workflows": [
+            {
+                "scenario": "學生詢問知識點",
+                "steps": [
+                    "1. 調用 metadata_discovery 了解系統結構",
+                    "2. 使用 semantic_search 查找相關知識點",
+                    "3. 使用 search_by_criteria 獲取相關題目練習"
+                ]
+            },
+            {
+                "scenario": "教師查找特定難度題目",
+                "steps": [
+                    "1. 調用 metadata_discovery 了解可用過濾條件",
+                    "2. 使用 search_by_criteria 按難度和年級篩選題目"
+                ]
+            },
+            {
+                "scenario": "根據教材查找練習題",
+                "steps": [
+                    "1. 使用 semantic_search 或 search_by_criteria 查找教冊",
+                    "2. 獲取教冊下的知識點列表",
+                    "3. 使用 search_by_criteria 按知識點代碼查找相關題目"
+                ]
+            }
+        ]
+    }
 }
 
 
@@ -196,10 +317,9 @@ mcp = FastMCP(SERVER_NAME, host="0.0.0.0")
 # 注册 MCP Tool (工具)
 # ============================================================================
 
-# 使用 @mcp.tool() 装饰器注册一个工具
+# 使用 @mcp.tool() 装饰器注册工具
 #
 # 工具(Tool)是 MCP 的核心概念之一，它允许 AI 模型调用外部功能
-# 当 AI 需要获取超人信息时，它可以调用这个工具
 #
 # 装饰器会自动：
 # 1. 从函数签名推断参数类型
@@ -207,73 +327,29 @@ mcp = FastMCP(SERVER_NAME, host="0.0.0.0")
 # 3. 注册工具到 MCP 服务器
 
 @mcp.tool()
-def get_superman_info(
-    category: Literal["all", "basic", "powers", "origin", "weaknesses"] = "all"
-) -> dict:
+def metadata_discovery() -> dict:
     """
-    获取超人(Superman)的详细信息，包括真实身份、超能力、弱点、背景故事等。
+    獲取教材資源系統的元數據信息。
 
-    这是一个 MCP Tool，可以被 AI 模型调用来获取超人的各类信息。
-
-    参数说明:
-        category: 要获取的信息类别
-            - "all": 返回全部信息（默认值）
-            - "basic": 返回基本身份信息（姓名、外貌、关联角色等）
-            - "powers": 返回超能力列表
-            - "origin": 返回起源故事
-            - "weaknesses": 返回弱点信息
+    這是 AI 必須首先調用的工具，用於了解：
+    - 數據庫結構和內容類型
+    - 內容之間的關係
+    - 可用的過濾條件
+    - 可用的工具列表
+    - 系統限制
+    - 典型使用流程示例
 
     返回值:
-        dict: 包含请求类别信息的字典
+        dict: 包含 success 狀態和完整元數據的字典
 
     使用示例:
-        # 获取全部信息
-        get_superman_info()
-
-        # 只获取超能力
-        get_superman_info(category="powers")
+        # 首次連接時調用，了解系統結構
+        metadata_discovery()
     """
-
-    # 根据请求的类别返回不同的信息
-    if category == "basic":
-        # 只返回基本身份信息
-        return {
-            "name": SUPERMAN_INFO["name"],
-            "realName": SUPERMAN_INFO["realName"],
-            "alias": SUPERMAN_INFO["alias"],
-            "publisher": SUPERMAN_INFO["publisher"],
-            "firstAppearance": SUPERMAN_INFO["firstAppearance"],
-            "creators": SUPERMAN_INFO["creators"],
-            "appearance": SUPERMAN_INFO["appearance"],
-            "associates": SUPERMAN_INFO["associates"],
-            "motto": SUPERMAN_INFO["motto"]
-        }
-
-    elif category == "powers":
-        # 只返回超能力列表
-        return {
-            "name": SUPERMAN_INFO["name"],
-            "powers": SUPERMAN_INFO["powers"]
-        }
-
-    elif category == "origin":
-        # 只返回起源故事
-        return {
-            "name": SUPERMAN_INFO["name"],
-            "alias": SUPERMAN_INFO["alias"],
-            "origin": SUPERMAN_INFO["origin"]
-        }
-
-    elif category == "weaknesses":
-        # 只返回弱点信息
-        return {
-            "name": SUPERMAN_INFO["name"],
-            "weaknesses": SUPERMAN_INFO["weaknesses"]
-        }
-
-    else:  # category == "all" 或其他情况
-        # 返回全部信息
-        return SUPERMAN_INFO
+    return {
+        "success": True,
+        "data": METADATA_DISCOVERY_DATA
+    }
 
 
 # ============================================================================
@@ -289,28 +365,35 @@ async def root(request):
     return JSONResponse({
         "name": SERVER_NAME,
         "version": "1.0.0",
-        "description": "这是一个简单的 MCP 服务器示例，提供超人信息查询功能",
+        "description": "教材資源 MCP 服務器，提供教材、知識點、練習題目的查詢功能",
         "endpoints": {
             "/": "服务器信息（当前页面）",
             "/sse": "SSE 连接端点 (GET) - 建立 MCP 连接",
             "/messages": "消息端点 (POST) - 发送 MCP 消息",
             "/health": "健康检查端点 (GET)"
         },
-        "tool": {
-            "name": "get_superman_info",
-            "description": "获取超人的详细信息",
-            "parameters": {
-                "category": {
-                    "type": "string",
-                    "options": ["all", "basic", "powers", "origin", "weaknesses"],
-                    "default": "all"
-                }
+        "tools": [
+            {
+                "name": "metadata_discovery",
+                "description": "獲取數據庫結構、內容關係、可用過濾條件和工具集（AI 必須首先調用）",
+                "parameters": None
+            },
+            {
+                "name": "semantic_search",
+                "description": "在指定範圍內進行自然語言語義搜索（待實現）",
+                "parameters": "query, content_type, filters"
+            },
+            {
+                "name": "search_by_criteria",
+                "description": "通過精確條件篩選內容（待實現）",
+                "parameters": "content_type, filters"
             }
-        },
+        ],
         "usage": {
             "step1": "使用 GET /sse 建立 SSE 连接",
             "step2": "从 SSE 事件中获取 endpoint URL",
-            "step3": "使用 POST /messages 发送 MCP 消息"
+            "step3": "首先調用 metadata_discovery 了解系統結構",
+            "step4": "使用 semantic_search 或 search_by_criteria 查詢內容"
         }
     })
 
@@ -364,7 +447,7 @@ app = Starlette(
 if __name__ == "__main__":
     # 打印启动信息
     print("=" * 60)
-    print("🦸 超人 MCP 服务器已启动！")
+    print("📚 教材資源 MCP 服務器已啟動！")
     print("=" * 60)
     print(f"📡 服务器地址: http://localhost:{PORT}")
     print(f"🔗 SSE 端点:   http://localhost:{PORT}/sse")
@@ -376,8 +459,9 @@ if __name__ == "__main__":
     print("   (健康检查端点不需要验证)")
     print("=" * 60)
     print("可用的 MCP 工具:")
-    print("  - get_superman_info: 获取超人的详细信息")
-    print("    参数 category: all | basic | powers | origin | weaknesses")
+    print("  - metadata_discovery: 獲取系統元數據（AI 必須首先調用）")
+    print("  - semantic_search:    語義搜索（待實現）")
+    print("  - search_by_criteria: 條件篩選（待實現）")
     print("=" * 60)
 
     # 使用 uvicorn 启动 ASGI 服务器
