@@ -32,6 +32,9 @@ MCP 支持多种传输方式：stdio、HTTP+SSE 等
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 # MCP SDK - 提供 MCP 协议的核心实现
 from mcp.server.fastmcp import FastMCP
@@ -57,6 +60,59 @@ PORT = int(os.environ.get("PORT", 3000))
 
 # 服务器名称（会在 MCP 握手时发送给客户端）
 SERVER_NAME = "superman-mcp-server"
+
+# 身份验证 Token（用于测试）
+# 在生产环境中，应该从环境变量或安全存储中读取
+AUTH_TOKEN = "fz-test-123456"
+
+# 不需要身份验证的路径（如健康检查）
+PUBLIC_PATHS = ["/health"]
+
+
+# ============================================================================
+# 身份验证中间件
+# ============================================================================
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """
+    Bearer Token 身份验证中间件
+
+    检查请求头中的 Authorization 字段，验证 Bearer token 是否正确。
+    对于 PUBLIC_PATHS 中的路径，跳过验证。
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        # 检查是否是公开路径（不需要验证）
+        if request.url.path in PUBLIC_PATHS:
+            return await call_next(request)
+
+        # 获取 Authorization header
+        auth_header = request.headers.get("Authorization")
+
+        # 验证 Authorization header 格式和 token
+        if not auth_header:
+            return JSONResponse(
+                {"error": "Missing Authorization header"},
+                status_code=401
+            )
+
+        # 检查是否是 Bearer token 格式
+        if not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                {"error": "Invalid Authorization header format. Expected: Bearer <token>"},
+                status_code=401
+            )
+
+        # 提取并验证 token
+        token = auth_header[7:]  # 去掉 "Bearer " 前缀
+        if token != AUTH_TOKEN:
+            return JSONResponse(
+                {"error": "Invalid token"},
+                status_code=401
+            )
+
+        # 验证通过，继续处理请求
+        return await call_next(request)
 
 # ============================================================================
 # 超人的基本信息数据
@@ -294,7 +350,10 @@ custom_routes = [
 # 将自定义路由添加到 MCP 应用的路由列表中
 # 这样可以在同一个服务器上同时提供 MCP 功能和自定义 HTTP 端点
 app = Starlette(
-    routes=custom_routes + mcp_app.routes  # 合并自定义路由和 MCP 路由
+    routes=custom_routes + mcp_app.routes,  # 合并自定义路由和 MCP 路由
+    middleware=[
+        Middleware(AuthMiddleware)  # 添加身份验证中间件
+    ]
 )
 
 
@@ -311,6 +370,10 @@ if __name__ == "__main__":
     print(f"🔗 SSE 端点:   http://localhost:{PORT}/sse")
     print(f"📨 消息端点:   http://localhost:{PORT}/messages")
     print(f"❤️  健康检查:   http://localhost:{PORT}/health")
+    print("=" * 60)
+    print("🔐 身份验证: 需要在请求头中添加")
+    print(f"   Authorization: Bearer {AUTH_TOKEN}")
+    print("   (健康检查端点不需要验证)")
     print("=" * 60)
     print("可用的 MCP 工具:")
     print("  - get_superman_info: 获取超人的详细信息")
